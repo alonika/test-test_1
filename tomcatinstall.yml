@@ -1,0 +1,61 @@
+
+- host: dev
+  become: yes
+  tasks:
+    - name: Installing git
+      yum:
+	name: git
+	state: present
+		
+    - name: Install basic packages
+      yum:
+        name: ['java-1.0.8-openjdk','vim','bash-completion','tmux','tree','htop','wget','unzip','curl','git']
+        state: present
+
+    - name: add group "tomcat"
+      group: name=tomcat
+
+    - name: add user "tomcat"
+      user:
+        name: tomcat
+        group: tomcat
+        home: /opt/tomcat
+        shell: /bin/nologin
+		
+    - name: Download Tomcat
+      get_url:
+        url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.0.32/bin/apache-tomcat-8.0.32.tar.gz
+        dest: /opt
+	mode: 0755
+		
+    - name: download tomcat
+      unarchive: 
+	 scr: /opt/apache-tomcat-8.0.32.tar.gz
+	 dest: /opt/tomcat
+	 remote_src: yes
+         extra_opts:
+          - --strip-components=1
+      notify:
+        - restart tomcat
+
+    - name: Change ownership of Tomcat installation
+      file: path=/opt/tomcat/ owner=tomcat group=tomcat state=directory recurse=yes
+
+    - name: Configure Tomcat server
+      template: src=server.xml dest=/opt/tomcat/conf/
+
+    - name: Configure Tomcat users
+      template: src=tomcat-users.xml dest=/opt/tomcat/conf/
+
+    - name: Install Tomcat SystemD Unit File
+      copy: src=tomcat.service dest=/etc/systemd/system/tomcat.service
+
+   - name: Start Tomcat
+     systemd:
+       name: tomcat
+       state: started
+       enabled: yes
+    daemon_reload: yes
+
+    - name: wait for tomcat to start
+      wait_for: port= 8080
